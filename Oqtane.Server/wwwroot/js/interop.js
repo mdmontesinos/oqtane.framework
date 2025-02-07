@@ -324,6 +324,8 @@ Oqtane.Interop = {
             chunksize = 1; // 1 MB default
         }
 
+        let maxConcurrentUploads = 5;
+
         if (progressinfo !== null && progressbar !== null) {
             progressinfo.setAttribute('style', 'display: inline;');
             if (fileinput.files.length > 1) {
@@ -341,7 +343,9 @@ Oqtane.Interop = {
             const totalParts = Math.ceil(file.size / chunkSize);
             let partCount = 0;
 
-            const uploadPart = () => {
+            let activeUploads = 0;
+
+            const uploadPart = (partCount) => {
                 const start = partCount * chunkSize;
                 const end = Math.min(start + chunkSize, file.size);
                 const chunk = file.slice(start, end);
@@ -377,18 +381,12 @@ Oqtane.Interop = {
                             return;
                         })
                         .then(data => {
-                            partCount++;
                             if (progressbar !== null) {
                                 uploadSize += chunk.size;
                                 var percent = Math.ceil((uploadSize / totalSize) * 100);
                                 progressbar.value = (percent / 100);
                             }
-                            if (partCount < totalParts) {
-                                uploadPart().then(resolve).catch(reject);
-                            }
-                            else {
-                                resolve(data);
-                            }
+                            resolve(data);
                         })
                         .catch(error => {
                             reject(error);
@@ -396,7 +394,28 @@ Oqtane.Interop = {
                 });
             };
 
-            return uploadPart();
+            return new Promise((resolve, reject) => {
+                function processNextUpload() {
+                    if (partCount >= totalParts) {
+                        if (activeUploads === 0) resolve(); // Done uploading all parts in the file
+                        return;
+                    }
+
+                    while (activeUploads < maxConcurrentUploads && partCount < totalParts) {
+                        uploadPart(partCount)
+                            .then(() => {
+                                activeUploads--;
+                                processNextUpload();
+                            })
+                            .catch(reject);
+
+                        activeUploads++;
+                        partCount++;
+                    }
+                }
+
+                processNextUpload();
+            });
         };
 
         try {
