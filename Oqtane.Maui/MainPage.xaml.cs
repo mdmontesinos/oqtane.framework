@@ -2,10 +2,19 @@ namespace Oqtane.Maui;
 
 public partial class MainPage : ContentPage
 {
-	public MainPage()
+    private HttpClient _httpClient;
+    private string _apiUrl;
+
+    public MainPage()
 	{
 		InitializeComponent();
-	}
+
+        HandlerChanged += (s, e) =>
+        {
+            _httpClient = Handler.MauiContext.Services.GetRequiredService<HttpClient>();
+            _apiUrl = Handler.MauiContext.Services.GetService<ConfiguredApiUrl>()?.Url ?? MauiConstants.ApiUrl;
+        };
+    }
 
     private static readonly byte[] _htmlPlaceholder = System.Text.Encoding.UTF8.GetBytes("<html><body>Asset Redirect</body></html>");
 
@@ -28,8 +37,6 @@ public partial class MainPage : ContentPage
         _ => "application/octet-stream",
     };
 
-    private static readonly HttpClient _httpClient = new();
-
     private void BlazorWebView_WebResourceRequested(object sender, WebViewWebResourceRequestedEventArgs e)
     {
         if (e.Uri.Host != "0.0.0.1") return;
@@ -40,8 +47,7 @@ public partial class MainPage : ContentPage
 
         e.Handled = true;
 
-        //TODO: Get api url from configuration as well
-        var redirectUrl = $"{MauiConstants.ApiUrl.TrimEnd('/')}{e.Uri.PathAndQuery}";
+        var redirectUrl = $"{_apiUrl.TrimEnd('/')}{e.Uri.PathAndQuery}";
 
 #if ANDROID
         var contentType = GetContentType(Path.GetExtension(path));
@@ -50,7 +56,6 @@ public partial class MainPage : ContentPage
         // Create a minimal HTML body (some engines require non-empty content)
         using var stream = new MemoryStream(_htmlPlaceholder);
 
-        // Set redirect headers
         var headers = new Dictionary<string, string>(e.Headers)
         {
             ["Location"] = redirectUrl

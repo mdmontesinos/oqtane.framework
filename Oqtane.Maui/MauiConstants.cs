@@ -11,6 +11,7 @@ public static class MauiConstants
     // specify if you wish to allow users to override the url via appsettings.json in the AppDataDirectory
     public static bool UseAppSettings = true;
 
+    // for local development of the Android app, you must add 10.0.2.2:44357 as an Alias for the Oqtane site
     private static string GetLocalhost()
     {
         return DeviceInfo.Platform == DevicePlatform.Android ? "10.0.2.2" : "localhost";

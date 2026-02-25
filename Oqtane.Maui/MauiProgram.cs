@@ -30,6 +30,8 @@ public static class MauiProgram
 
         if (!string.IsNullOrEmpty(apiurl))
         {
+            builder.Services.AddSingleton(new ConfiguredApiUrl { Url = apiurl });
+
 #if DEBUG && ANDROID
             var httpClient = new HttpClient(DevHttpsConnectionHelper.GetPlatformMessageHandler()) { BaseAddress = new Uri(GetBaseUrl(apiurl)) };
 #else
