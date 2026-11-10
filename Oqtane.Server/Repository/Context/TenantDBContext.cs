@@ -24,6 +24,9 @@ namespace Oqtane.Repository
 {
     public class TenantDBContext : IdentityUserContext<IdentityUser>, IMultiDatabase
     {
+        private static readonly Lazy<IServiceProvider> _identityServiceProviderVersion2 = new(() => CreateIdentityServiceProvider(IdentitySchemaVersions.Version2));
+        private static readonly Lazy<IServiceProvider> _identityServiceProviderVersion3 = new(() => CreateIdentityServiceProvider(IdentitySchemaVersions.Version3));
+
         private readonly ITenantManager _tenantManager;
         private readonly IHttpContextAccessor _accessor;
         private readonly IConfigurationRoot _config;
@@ -68,20 +71,8 @@ namespace Oqtane.Repository
             }
 
             // specify the SchemaVersion for .NET Identity as it is not being persisted when using AddIdentityCore()
-            var services = new ServiceCollection();
-            services.AddIdentityCore<IdentityUser>(options =>
-            {
-                if (!string.IsNullOrEmpty(_databaseType) && _databaseType.ToLower().Contains("mysql"))
-                {
-                    // MySQL does not support some of the newer features of .NET Identity (ie. Passkeys)
-                    options.Stores.SchemaVersion = IdentitySchemaVersions.Version2;
-                }
-                else
-                {
-                    options.Stores.SchemaVersion = IdentitySchemaVersions.Version3;
-                }
-            });
-            optionsBuilder.UseApplicationServiceProvider(services.BuildServiceProvider());
+            // MySQL does not support some of the newer features of .NET Identity (ie. Passkeys)
+            optionsBuilder.UseApplicationServiceProvider(IsMySqlDatabase() ? _identityServiceProviderVersion2.Value : _identityServiceProviderVersion3.Value);
 
             if (!string.IsNullOrEmpty(_connectionString) && ActiveDatabase != null)
             {
@@ -138,5 +129,16 @@ namespace Oqtane.Repository
         public virtual DbSet<SiteGroup> SiteGroup { get; set; }
         public virtual DbSet<SiteGroupMember> SiteGroupMember { get; set; }
         public virtual DbSet<SiteTask> SiteTask { get; set; }
+
+        private static IServiceProvider CreateIdentityServiceProvider(Version schemaVersion)
+        {
+            var services = new ServiceCollection();
+            services.AddIdentityCore<IdentityUser>(options => options.Stores.SchemaVersion = schemaVersion);
+
+            return services.BuildServiceProvider();
+        }
+
+        private bool IsMySqlDatabase()
+            => !string.IsNullOrEmpty(_databaseType) && _databaseType.Contains("mysql", StringComparison.OrdinalIgnoreCase);
     }
 }
